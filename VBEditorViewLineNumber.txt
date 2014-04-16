@@ -1,0 +1,29 @@
+VBE（Visual Basic Editor）に行番号を表示させる方法
+
+
+- VBEには標準で行番号表示の機能がない。
+- 行番号表示用のアドインをインストールする。 
+
+★アドインの導入手順
+1. アドインのダウンロード
+http://hpcgi1.nifty.com/mtj-k/dlcount.cgi?file=addlinenumbers141.zip
+
+2. 任意のフォルダに解凍
+
+3. コマンドプロンプトを管理者権限で起動する。
+   (コマンドプロンプトのアイコンを右クリック→管理者として実行)
+
+4. 以下のコマンドを実行
+   > regsvr32 "%アドオンの解凍ディレクトリのフルパス%\VB6IDEAddLineNumbersAddin.dll"
+     [ 成功しました ] が出力されればOK
+
+5. VBEを起動
+   アドイン→アドインマネージャー→AddLineNumbers をロード対象にする。
+
+以上
+
+
+
+Z. アドインをアンインストールしたい場合
+   > regsvr32 "%アドオンの解凍ディレクトリのフルパス%\VB6IDEAddLineNumbersAddin.dll" /u
+
