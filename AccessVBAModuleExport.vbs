@@ -1,6 +1,5 @@
 Option Explicit
 
-' http://www.atmarkit.co.jp/bbs/phpBB/viewtopic.php?topic=40473&forum=36&2
 
 ' エクスポートの共通処理
 Class ExportModuleBase
@@ -118,14 +117,13 @@ Class SelectBySuffix
 
         Dim exporter
         Select Case suffix
-            Case "adp"
-                Set exporter = New AdpExport
-            Case "accdb"
-                Set exporter = New AccdbExport
+            Case "adp", "accdb"
+                Set exporter = New AccessExport
             Case Else
                 Set exporter = New NotExport
         End Select
 
+        exporter.Suffix = suffix
         Set GetExporter = exporter
     End Function
 End Class
@@ -141,11 +139,16 @@ Class NotExport
 End Class
 
 ' Accessプロジェクトファイルからモジュールをエクスポートする
-Class AdpExport
+Class AccessExport
     Private exportUtil
+    Private strSuffix
 
     Public Property Let ExportBase(baseObj)
         Set exportUtil = baseObj
+    End Property
+
+    Public Property Let Suffix(value)
+        strSuffix = value
     End Property
 
     Public Function TryExport(vbaProject, exportDir)
@@ -155,31 +158,40 @@ Class AdpExport
 
         Wscript.Echo "AccessProject Start TryExport."
     
+        ' Accdb or Adpファイルオープン
         Set access = CreateObject("Access.Application")
-        access.OpenAccessProject vbaProject, False
+        If strSuffix = "adp" Then
+            access.OpenAccessProject(vbaProject)
+        ElseIf strSuffix = "accdb" Then
+            access.OpenCurrentDatabase(vbaProject)
+        End If
 
-        Set project = access.CurrentProject
 
-        ' モジュールとクラス
-        For Each module In project.AllModules
-            If module.Attributes > 0 Then
-                ExportModule access, module, exportDir, "cls"
-            Else
-                ExportModule access, module, exportDir, "bas"
-            End If
+        For Each module In access.VBE.ActiveVBProject.VBComponents
+            WScript.Echo " -- " & module.Name & " --" 
+            WScript.Echo " type " & module.Type  
         Next
 
+        ' モジュールとクラス
+        'For Each module In project.AllModules
+        '    If module.Attributes > 0 Then
+        '        ExportModule access, module, exportDir, "cls"
+        '    Else
+        '        ExportModule access, module, exportDir, "bas"
+        '    End If
+        'Next
+
         ' フォーム
-        WScript.Echo "start export forms."
-        ExportModules access, project.AllForms, exportDir, "frm"
-
-        ' マクロ
-        WScript.Echo "start export macros."
-        ExportModules access, project.AllMacros, exportDir, "mcr"
-
-        ' レポート
-        WScript.Echo "start export reports."
-        ExportModules access, project.AllReports, exportDir, "rpt"
+'        WScript.Echo "start export forms."
+'        ExportModules access, project.AllForms, exportDir, "frm"
+'
+'        ' マクロ
+'        WScript.Echo "start export macros."
+'        ExportModules access, project.AllMacros, exportDir, "mcr"
+'
+'        ' レポート
+'        WScript.Echo "start export reports."
+'        ExportModules access, project.AllReports, exportDir, "rpt"
 
         access.Quit()
 
