@@ -1,6 +1,5 @@
 Option Explicit
 
-' http://www.atmarkit.co.jp/bbs/phpBB/viewtopic.php?topic=40473&forum=36&2
 
 ' エクスポートの共通処理
 Class ExportModuleBase
@@ -118,14 +117,13 @@ Class SelectBySuffix
 
         Dim exporter
         Select Case suffix
-            Case "adp"
-                Set exporter = New AdpExport
-            Case "accdb"
-                Set exporter = New AccdbExport
+            Case "adp", "accdb"
+                Set exporter = New AccessExport
             Case Else
                 Set exporter = New NotExport
         End Select
 
+        exporter.Suffix = suffix
         Set GetExporter = exporter
     End Function
 End Class
@@ -141,73 +139,102 @@ Class NotExport
 End Class
 
 ' Accessプロジェクトファイルからモジュールをエクスポートする
-Class AdpExport
+Class AccessExport
     Private exportUtil
+    Private strSuffix
 
     Public Property Let ExportBase(baseObj)
         Set exportUtil = baseObj
     End Property
 
+    Public Property Let Suffix(value)
+        strSuffix = value
+    End Property
+
     Public Function TryExport(vbaProject, exportDir)
-        Dim access
-        Dim project
+        Dim access 
         Dim module
 
         Wscript.Echo "AccessProject Start TryExport."
     
+        ' Accdb or Adpファイルオープン
         Set access = CreateObject("Access.Application")
-        access.OpenAccessProject vbaProject, False
+        If strSuffix = "adp" Then
+            access.OpenAccessProject(vbaProject)
+        ElseIf strSuffix = "accdb" Then
+            access.OpenCurrentDatabase(vbaProject)
+        End If
 
-        Set project = access.CurrentProject
+        ' VBAモジュールのExport
+        Dim moduleSuffix
+        For Each module In access.VBE.ActiveVBProject.VBComponents
+            moduleSuffix = GetModuleSuffix(module)
 
-        ' モジュールとクラス
-        For Each module In project.AllModules
-            If module.Attributes > 0 Then
-                ExportModule access, module, exportDir, "cls"
-            Else
-                ExportModule access, module, exportDir, "bas"
+            WScript.Echo " -- " & module.Name & " --" 
+            WScript.Echo " type " & module.Type  
+
+            If Not moduleSuffix = "" Then
+                module.Export (exportDir & "/" & module.Name & moduleSuffix)
+                WScript.Echo " export " & module.Name
             End If
         Next
 
-        ' フォーム
-        WScript.Echo "start export forms."
-        ExportModules access, project.AllForms, exportDir, "frm"
-
         ' マクロ
         WScript.Echo "start export macros."
-        ExportModules access, project.AllMacros, exportDir, "mcr"
-
-        ' レポート
-        WScript.Echo "start export reports."
-        ExportModules access, project.AllReports, exportDir, "rpt"
+        ExportNotVBAModules access, access.CurrentProject.AllMacros, exportDir, "mcr"
 
         access.Quit()
 
         Set TryExport = Me
     End Function
 
-    Private Sub ExportModule(ByRef access, ByRef module, ByVal exportDir, ByVal suffix)
-        Dim exportDirBySuffix
+    ' VBAモジュール以外のExport
+    Private Sub ExportNotVBAModule(ByRef access, ByRef module, ByVal exportDir, ByVal suffix)
+        'Dim exportDirBySuffix
         Dim exportModuleFilePath
 
-        exportDirBySuffix = exportDir & "\" & suffix
-        exportUtil.CreateDir(exportDirBySuffix)
+        'exportDirBySuffix = exportDir & "\" & suffix
+        'exportUtil.CreateDir(exportDirBySuffix)
 
-        exportModuleFilePath = exportDirBySuffix & "\" & module.Name & "." & suffix
+        'exportModuleFilePath = exportDirBySuffix & "\" & module.Name & "." & suffix
+        exportModuleFilePath = exportDir & "\" & module.Name & "." & suffix
         access.SaveAsText module.Type, module.Name, exportModuleFilePath
 
         WScript.Echo "export " & module.Name & " -> " & exportModuleFilePath
     End Sub
 
-    Private Sub ExportModules(ByRef access, ByRef modules, ByVal exportDir, ByVal suffix)
+    Private Sub ExportNotVBAModules(ByRef access, ByRef modules, ByVal exportDir, ByVal suffix)
         Dim moduleObj
 
         If modules.Count > 0 Then
             For Each moduleObj In modules
-                ExportModule access, moduleObj, exportDir, suffix
+                ExportNotVBAModule access, moduleObj, exportDir, suffix
             Next
         End If
     End Sub
+
+    Private Function GetModuleSuffix(ByRef module)
+        Dim moduleSuffix 
+        moduleSuffix = ""
+
+        If module.Type = 1 Then
+            ' 標準モジュール
+            moduleSuffix = ".bas"
+        ElseIf module.Type = 2 Then
+            ' クラスモジュール
+            moduleSuffix = ".cls"
+        ElseIf module.Type = 100 Then
+            If InStr(module.Name, "Form_") = 1 Then
+                ' フォーム
+                moduleSuffix = ".frm"
+            ElseIf InStr(module.Name, "Report_") = 1 Then
+                ' レポート
+                moduleSuffix = ".rpt"
+            End If
+        End If
+
+        GetModuleSuffix = moduleSuffix
+    End Function
 
 End Class
     
